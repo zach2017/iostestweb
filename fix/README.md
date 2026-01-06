@@ -1,6 +1,6 @@
-# iOS ITP Cookie Storage Demo
+# iOS ITP Cookie Storage Demo (with Fixes!)
 
-This Express app demonstrates how Safari's **Intelligent Tracking Prevention (ITP)** blocks cookies and localStorage in cross-site (third-party) contexts, causing content to fail to load on iOS devices.
+This Express app demonstrates how Safari's **Intelligent Tracking Prevention (ITP)** blocks cookies and localStorage in cross-site (third-party) contexts, and shows **4 working solutions**.
 
 ## What is ITP?
 
@@ -28,7 +28,7 @@ This demo runs **two servers** to simulate cross-origin behavior:
 | Server | Port | Purpose |
 |--------|------|---------|
 | Main App | 7371 | First-party context (works everywhere) |
-| Third-Party | 7372 | Cross-origin iframe (blocked by ITP) |
+| Third-Party | 3001 | Cross-origin iframe (blocked by ITP) |
 
 ## Quick Start
 
@@ -84,18 +84,54 @@ To test on a real iOS device:
 
 ## Workarounds
 
-1. **Storage Access API**: Request explicit storage access
-   ```javascript
-   document.requestStorageAccess().then(() => {
-     // Now have access
-   });
-   ```
+### ✅ Fix 1: Storage Access API
+Request explicit storage access with user interaction:
+```javascript
+// Inside iframe, after user clicks button:
+document.requestStorageAccess().then(() => {
+  // Now have cookie access!
+  document.cookie = 'my_cookie=value';
+});
+```
+**Limitation:** Requires user gesture and prior first-party visit.
 
-2. **First-party redirects**: Authenticate via redirect instead of iframe
+### ✅ Fix 2: postMessage Communication
+Pass data between parent and iframe without cookies:
+```javascript
+// Parent sends token
+iframe.contentWindow.postMessage({
+  type: 'AUTH_TOKEN',
+  token: 'abc123'
+}, 'http://third-party.com');
 
-3. **Token-based auth**: Pass tokens via URL/postMessage instead of cookies
+// Iframe receives and stores in JS variable (not localStorage)
+window.addEventListener('message', (e) => {
+  authToken = e.data.token;
+});
+```
+**Works on iOS!** No cookies needed.
 
-4. **Partitioned cookies (CHIPS)**: Use `Partitioned` attribute for cookies
+### ✅ Fix 3: First-Party Proxy
+Route third-party API calls through your server:
+```javascript
+// Instead of: fetch('https://api.third-party.com/data')
+// Use:
+fetch('/api/proxy/data')  // Your server fetches from third-party
+```
+**Works on iOS!** Cookies stay first-party.
+
+### ✅ Fix 4: Redirect-Based Auth (OAuth-style)
+```javascript
+// 1. Redirect to third-party
+window.location = 'http://third-party.com/auth?redirect=http://mysite.com';
+
+// 2. Third-party authenticates and redirects back with token
+// http://mysite.com?token=abc123
+
+// 3. Save as FIRST-PARTY cookie
+document.cookie = `auth=${token}`;
+```
+**Works on iOS!** Token becomes first-party.
 
 ## Files
 
